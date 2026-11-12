@@ -85,7 +85,8 @@ export function useControls(
     );
     ray.current.layers.enableAll();
     ray.current.setFromCamera(point.current, camera);
-    return ray.current.intersectObjects(buttons.current, false)[0]?.object;
+    const hits = ray.current.intersectObjects(buttons.current, false);
+    return (hits.find(({ object }) => object.userData.action === 'leave') ?? hits[0])?.object;
   };
   useLayoutEffect(() => {
     for (const source of gl.xr.getSession()?.inputSources ?? [])

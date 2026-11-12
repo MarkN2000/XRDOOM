@@ -345,6 +345,15 @@ export function World() {
       viewerAudio.current = null;
     };
   }, [broadcast.remoteStream, audioContext, streamSound, seated]);
+  const restorePointerLock = useCallback(async () => {
+    if (!desktop || mobile || gl.xr.isPresenting || document.pointerLockElement?.contains(gl.domElement))
+      return;
+    try {
+      await document.body.requestPointerLock();
+    } catch {
+      // The browser may require another click after focus loss.
+    }
+  }, [desktop, mobile, gl]);
   const onAction = useCallback(
     async (action: Action) => {
       if (action === 'sit') {
@@ -364,6 +373,7 @@ export function World() {
       }
       if (!hosting) return;
       if (action === 'leave') {
+        void restorePointerLock();
         runtime?.release();
         setSession(null);
         setSeatVisible(false);
@@ -441,6 +451,7 @@ export function World() {
       audioContext,
       setSession,
       setLastPlayer,
+      restorePointerLock,
       camera,
       gl,
       focusOffset,
@@ -585,7 +596,7 @@ export function World() {
                 <DosHint baseUrl={baseUrl} text={screenHint} ready={screenAction === 'resume'} />
               ) : (
                 <>
-                  <mesh>
+                  <mesh visible={!(hosting && runtime?.started && showMenu)}>
                     <planeGeometry args={[0.6, 0.45]} />
                     <meshBasicMaterial
                       color="#07110d"
@@ -653,6 +664,7 @@ export function World() {
             }}
             onLeave={({ isLocalUser }) => {
               if (!isLocalUser) return;
+              void restorePointerLock();
               runtime?.release();
               if (sessionRef.current?.owner === userId) setSession(null);
               setMenu(true);
