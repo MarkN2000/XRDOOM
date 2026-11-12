@@ -31,6 +31,7 @@ const keyboardKeys: Record<string, number> = {
   KeyZ: KEY.strafeLeft,
   KeyC: KEY.strafeRight,
   KeyF: KEY.use,
+  Space: KEY.use,
   ShiftLeft: KEY.speed,
   ShiftRight: KEY.speed,
 };
@@ -150,14 +151,13 @@ export function useControls(
         event.stopImmediatePropagation();
       }
       if (event.button === 2) {
-        held.current.add(KEY.use);
-        current.current.runtime?.pulse(KEY.use);
+        current.current.action('weapon');
         event.stopImmediatePropagation();
       }
       current.current.runtime?.resumeAudio();
     };
     const mouseUp = (event: MouseEvent) => {
-      held.current.delete(event.button === 2 ? KEY.use : KEY.fire);
+      if (event.button === 0) held.current.delete(KEY.fire);
     };
     const mouseMove = (event: MouseEvent) => {
       if (
@@ -305,11 +305,7 @@ export function useControls(
       if (event.code === 'Space') {
         event.preventDefault();
         event.stopImmediatePropagation();
-        if (!event.repeat) {
-          setSpaceDown(true);
-          current.current.action('weapon');
-        }
-        return;
+        if (!event.repeat) setSpaceDown(true);
       }
       if (event.code === 'KeyE') {
         event.preventDefault();

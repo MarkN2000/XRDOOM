@@ -283,14 +283,7 @@ export function World() {
   }, [hosting, session?.id, baseUrl, userId]);
   useEffect(() => {
     runtime?.pause(!hosting || showMenu || booting);
-    if (
-      hosting &&
-      showMenu &&
-      !gl.xr.isPresenting &&
-      document.pointerLockElement?.contains(gl.domElement)
-    )
-      document.exitPointerLock();
-  }, [runtime, showMenu, booting, hosting, gl]);
+  }, [runtime, showMenu, booting, hosting]);
   useEffect(() => {
     runtime?.run(false);
   }, [runtime]);
@@ -379,6 +372,8 @@ export function World() {
       }
       if (action === 'menu') {
         setMenu(true);
+        if (!gl.xr.isPresenting && document.pointerLockElement?.contains(gl.domElement))
+          document.exitPointerLock();
         return;
       }
       if (action === 'resume') {
@@ -718,7 +713,7 @@ export function World() {
                     </mesh>
                     {[
                       '移動 WASD\n旋回 マウス / ←→\n走る Shift / 地図 M',
-                      '射撃 左クリック\n使う 右クリック / F\n武器 Space',
+                      '射撃 左クリック\n使う Space / F\n武器 右クリック',
                     ].map((label, index) => (
                       <Text
                         key={label}
