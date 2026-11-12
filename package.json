@@ -1,0 +1,47 @@
+{
+  "name": "xrdoom",
+  "version": "1.0.0",
+  "description": "A shared DOOM computer room for XRift",
+  "type": "module",
+  "scripts": {
+    "postinstall": "node scripts/prepare-xrift.mjs",
+    "predev": "node scripts/prepare-vdo.mjs",
+    "dev": "vite",
+    "prebuild": "node scripts/prepare-vdo.mjs && node scripts/prepare-source.mjs",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "build:doom": "node scripts/build-doom.mjs",
+    "fetch:shareware": "node scripts/fetch-shareware.mjs",
+    "check": "npm run build && xrift check world",
+    "prepare:source": "node scripts/prepare-source.mjs"
+  },
+  "devDependencies": {
+    "@originjs/vite-plugin-federation": "^1.4.1",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.5.0",
+    "@react-three/rapier": "^2.2.0",
+    "@react-three/uikit": "^1.0.64",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.183.1",
+    "@vitejs/plugin-react": "^5.1.4",
+    "@xrift/cli": "^0.26.0",
+    "@xrift/sdk": "^0.2.1",
+    "react": "~19.2.4",
+    "react-dom": "~19.2.4",
+    "three": "^0.183.1",
+    "typescript": "^5.6.2",
+    "vite": "^7.3.8",
+    "fflate": "0.8.3"
+  },
+  "dependencies": {
+    "@vdoninja/sdk": "1.6.2",
+    "@xrift/world-components": "^0.63.0"
+  },
+  "private": true,
+  "license": "GPL-2.0-or-later",
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

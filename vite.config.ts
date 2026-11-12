@@ -1,0 +1,86 @@
+import react from '@vitejs/plugin-react';
+import path from 'path';
+import { defineConfig } from 'vite';
+import federation from '@originjs/vite-plugin-federation';
+import { xriftDev } from '@xrift/sdk/vite';
+
+export default defineConfig({
+  plugins: [
+    react(),
+    xriftDev(),
+    federation({
+      name: 'xrift_doom_arcade',
+      filename: 'remoteEntry.js',
+      exposes: {
+        './World': './src/index.tsx',
+      },
+      shared: {
+        react: {
+          singleton: true,
+          requiredVersion: '*',
+        },
+        'react-dom': {
+          singleton: true,
+          requiredVersion: '*',
+        },
+        'react-dom/client': {
+          singleton: true,
+        },
+        'react/jsx-runtime': {
+          singleton: true,
+        },
+        three: {
+          singleton: true,
+          requiredVersion: '*',
+        },
+        'three/addons/loaders/GLTFLoader.js': {
+          singleton: true,
+        },
+        'three/addons/loaders/DRACOLoader.js': {
+          singleton: true,
+        },
+        'three/addons/loaders/KTX2Loader.js': {
+          singleton: true,
+        },
+        '@react-three/fiber': {
+          singleton: true,
+          requiredVersion: '*',
+        },
+        '@react-three/rapier': {
+          singleton: true,
+          requiredVersion: '*',
+        },
+        '@react-three/drei': {
+          singleton: true,
+          requiredVersion: '*',
+        },
+        '@react-three/uikit': {
+          singleton: true,
+          requiredVersion: '*',
+        },
+        '@pmndrs/uikit': {
+          singleton: true,
+          requiredVersion: '*',
+        },
+        '@xrift/world-components': {
+          singleton: true,
+          requiredVersion: '*',
+        },
+      },
+    }),
+  ],
+  build: {
+    target: 'esnext',
+    minify: false,
+    cssCodeSplit: false,
+    assetsDir: '',
+  },
+  resolve: {
+    alias: {
+      '~': path.resolve(__dirname, './src'),
+    },
+  },
+  define: {
+    global: 'globalThis',
+  },
+});
