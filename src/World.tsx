@@ -86,7 +86,7 @@ function Button({
       <Interactable id={id} onInteract={() => onAction(action)} interactionText={label}>
         <mesh ref={register} userData={{ action }} layers-mask={1 << LAYERS.FIRST_PERSON_ONLY}>
           <boxGeometry args={[width, height, 0.012]} />
-          <meshBasicMaterial color={action === 'leave' ? '#493f34' : '#28352d'} />
+          <meshBasicMaterial color={action === 'leave' ? '#493f34' : '#252525'} />
         </mesh>
         <Text
           layers-mask={1 << LAYERS.FIRST_PERSON_ONLY}
@@ -136,6 +136,7 @@ export function World() {
   const seated = occupant !== null && occupant === seats.getLocalUserId();
   const userId = localUser?.id ?? seats.getLocalUserId() ?? 'local';
   const [sharedSession, setSession] = useInstanceState<Session>('doom-arcade/session', null);
+  const [lastPlayer, setLastPlayer] = useInstanceState<string | null>('doom-arcade/last-player', null);
   const session =
     sharedSession && (sharedSession.owner === userId ? seated : occupant === sharedSession.owner)
       ? sharedSession
@@ -144,6 +145,7 @@ export function World() {
   const originalFov = useRef(camera instanceof PerspectiveCamera ? camera.fov : 50);
   const [seatVisible, setSeatVisible] = useState(true);
   const [runtime, setRuntime] = useState<DoomRuntime | null>(null);
+  const retainedRuntime = useRef<DoomRuntime | null>(null);
   const [booting, setBooting] = useState(false);
   const [menu, setMenu] = useState(true);
   const showMenu = menu || viewBlocked;
@@ -232,19 +234,35 @@ export function World() {
     }
   }, [hosting, viewBlocked]);
   useEffect(() => {
+    return () => {
+      retainedRuntime.current?.dispose();
+      retainedRuntime.current = null;
+    };
+  }, [baseUrl, userId]);
+  useEffect(() => {
+    if (!hosting && lastPlayer && lastPlayer !== userId) {
+      retainedRuntime.current?.dispose();
+      retainedRuntime.current = null;
+    }
+  }, [hosting, lastPlayer, userId]);
+  useEffect(() => {
     if (!hosting) return;
     let cancelled = false;
     let created: DoomRuntime | undefined;
     setMessage('');
     setMenu(true);
     setBooting(false);
-    void startDoom(baseUrl, 3)
+    if (retainedRuntime.current) {
+      created = retainedRuntime.current;
+      setRuntime(created);
+    } else void startDoom(baseUrl, 3)
       .then((value) => {
         if (cancelled) {
           value.dispose();
           return;
         }
         created = value;
+        retainedRuntime.current = value;
         value.pause(true);
         setRuntime(value);
         setMessage('');
@@ -254,14 +272,25 @@ export function World() {
       });
     return () => {
       cancelled = true;
-      created?.dispose();
+      created?.pause(true);
+      if (created && !created.started) {
+        created.dispose();
+        if (retainedRuntime.current === created) retainedRuntime.current = null;
+      }
       setRuntime(null);
       axes.current = { forward: 0, right: 0 };
     };
-  }, [hosting, session?.id, baseUrl]);
+  }, [hosting, session?.id, baseUrl, userId]);
   useEffect(() => {
-    runtime?.pause(showMenu || booting);
-  }, [runtime, showMenu, booting]);
+    runtime?.pause(!hosting || showMenu || booting);
+    if (
+      hosting &&
+      showMenu &&
+      !gl.xr.isPresenting &&
+      document.pointerLockElement?.contains(gl.domElement)
+    )
+      document.exitPointerLock();
+  }, [runtime, showMenu, booting, hosting, gl]);
   useEffect(() => {
     runtime?.run(false);
   }, [runtime]);
@@ -324,7 +353,7 @@ export function World() {
     };
   }, [broadcast.remoteStream, audioContext, streamSound, seated]);
   const onAction = useCallback(
-    (action: Action) => {
+    async (action: Action) => {
       if (action === 'sit') {
         if (!session || session.owner === userId) seats.sit(SEAT);
         return;
@@ -341,7 +370,6 @@ export function World() {
         return;
       }
       if (!hosting) return;
-      runtime?.resumeAudio();
       if (action === 'leave') {
         runtime?.release();
         setSession(null);
@@ -356,6 +384,24 @@ export function World() {
       if (action === 'resume') {
         if (!gl.xr.isPresenting && getViewpoint() === 'third-person') return;
         if (runtime && !booting) {
+          runtime.resumeAudio();
+          if (
+            desktop &&
+            !mobile &&
+            !gl.xr.isPresenting &&
+            !document.pointerLockElement?.contains(gl.domElement)
+          ) {
+            try {
+              await document.body.requestPointerLock();
+            } catch {
+              return;
+            }
+          }
+          if (
+            sessionRef.current?.id !== session?.id ||
+            seats.getOccupantId(SEAT) !== seats.getLocalUserId()
+          )
+            return;
           if (!gl.xr.isPresenting) {
             camera.lookAt(
               SCREEN_WORLD[0],
@@ -368,13 +414,21 @@ export function World() {
           if (!runtime.started) {
             setBooting(true);
             void runtime.start().then((completed) => {
-              if (completed) setBooting(false);
+              if (
+                completed &&
+                retainedRuntime.current === runtime &&
+                sessionRef.current?.id === session?.id
+              ) {
+                setLastPlayer(userId);
+                setBooting(false);
+              }
             });
-          }
+          } else setLastPlayer(userId);
         }
         return;
       }
       if (!menu && !booting && (gl.xr.isPresenting || getViewpoint() === 'first-person')) {
+        runtime?.resumeAudio();
         if (action === 'map') runtime?.pulse(KEY.map);
         if (action === 'weapon') runtime?.pulse(KEY.next);
         if (action === 'use') runtime?.pulse(KEY.use);
@@ -391,11 +445,14 @@ export function World() {
       userId,
       audioContext,
       setSession,
+      setLastPlayer,
       camera,
       gl,
       focusOffset,
       inVR,
       getViewpoint,
+      desktop,
+      mobile,
     ],
   );
   useControls(hosting && !viewBlocked, !showMenu && !booting, runtime, buttons, axes, onAction);
@@ -427,7 +484,7 @@ export function World() {
         .set(SCREEN_WORLD[0], SCREEN_WORLD[1] - 0.225 * ROOM_SCALE, SCREEN_WORLD[2])
         .project(camera);
       if (desktopGuide.current)
-        desktopGuide.current.visible = ((1 + screenBottom.current.y) * size.height) / 2 >= 116;
+        desktopGuide.current.visible = ((1 + screenBottom.current.y) * size.height) / 2 >= 100;
     }
   });
   const buttonProps = { buttons, onAction, font };
@@ -459,11 +516,7 @@ export function World() {
   const hudRight = size.width / 2;
   const hudBottom = -size.height / 2;
   const desktopButtonWidth = Math.min(168, (size.width - 168) / 4);
-  const desktopColumns = [
-    -1.5 * desktopButtonWidth - 72,
-    -desktopButtonWidth / 2 - 60,
-    desktopButtonWidth / 2 + 60,
-  ];
+  const desktopGuideWidth = Math.min(400, size.width / 2 - 96);
   const touchCenter = hudBottom + size.height * (size.width > size.height ? 144 / 375 : 228 / 722);
   return (
     <Suspense fallback={null}>
@@ -637,66 +690,67 @@ export function World() {
           <group ref={desktopHud}>
             <group name="doom-desktop-controls" position={[0, 0, -1]} scale={hudScale}>
               {!showMenu && !booting && (
-                <>
-                  <group ref={desktopGuide} position={[0, hudBottom + 89, 0]}>
+                <group ref={desktopGuide} name="doom-desktop-guide" position={[0, hudBottom + 52, 0]}>
+                  <group name="doom-desktop-pause-guide" position={[-180, 0, 0]}>
+                    <mesh layers-mask={1 << LAYERS.FIRST_PERSON_ONLY} renderOrder={18}>
+                      <planeGeometry args={[200, 80]} />
+                      <meshBasicMaterial color="#252525" depthTest={false} depthWrite={false} />
+                    </mesh>
+                    <Text
+                      layers-mask={1 << LAYERS.FIRST_PERSON_ONLY}
+                      font={font}
+                      position={[0, 0, 0.02]}
+                      fontSize={22}
+                      lineHeight={1.15}
+                      color="#f4d99c"
+                      textAlign="center"
+                      renderOrder={21}
+                      material-depthTest={false}
+                      material-depthWrite={false}
+                    >
+                      {'Esc\n一時停止'}
+                    </Text>
+                  </group>
+                  <group name="doom-desktop-input-guide" position={[80 + desktopGuideWidth / 2, 0, 0]}>
+                    <mesh layers-mask={1 << LAYERS.FIRST_PERSON_ONLY} renderOrder={18}>
+                      <planeGeometry args={[desktopGuideWidth, 80]} />
+                      <meshBasicMaterial color="#252525" depthTest={false} depthWrite={false} />
+                    </mesh>
                     {[
-                      '移動 WASD\n走る Shift',
-                      '使う Space\n武器 R',
-                      '射撃 左クリック\n旋回 マウス / ←→',
+                      '移動 WASD\n旋回 マウス / ←→\n走る Shift / 地図 M',
+                      '射撃 左クリック\n使う 右クリック / F\n武器 Space',
                     ].map((label, index) => (
-                      <group key={label} position={[desktopColumns[index], 0, 0]}>
-                        <mesh layers-mask={1 << LAYERS.FIRST_PERSON_ONLY} renderOrder={18}>
-                          <planeGeometry args={[desktopButtonWidth, 38]} />
-                          <meshBasicMaterial color="#28352d" depthTest={false} depthWrite={false} />
-                        </mesh>
-                        <Text
-                          layers-mask={1 << LAYERS.FIRST_PERSON_ONLY}
-                          font={font}
-                          position={[0, 0, 0.02]}
-                          fontSize={Math.min(16, desktopButtonWidth / 10)}
-                          color="#dadcc3"
-                          textAlign="center"
-                          renderOrder={21}
-                          material-depthTest={false}
-                          material-depthWrite={false}
-                        >
-                          {label}
-                        </Text>
-                      </group>
+                      <Text
+                        key={label}
+                        layers-mask={1 << LAYERS.FIRST_PERSON_ONLY}
+                        font={font}
+                        position={[index === 0 ? -desktopGuideWidth / 2 + 14 : 6, 0, 0.02]}
+                        anchorX="left"
+                        fontSize={Math.min(14, (desktopGuideWidth - 40) / 18)}
+                        lineHeight={1.25}
+                        color="#dadcc3"
+                        renderOrder={21}
+                        material-depthTest={false}
+                        material-depthWrite={false}
+                      >
+                        {label}
+                      </Text>
                     ))}
                   </group>
-                  <MobileButton
-                    {...buttonProps}
-                    id="doom-menu"
-                    label="一時停止 Enter"
-                    action="menu"
-                    position={[desktopColumns[0], hudBottom + 36, 0]}
-                    width={desktopButtonWidth}
-                    height={48}
-                    fontSize={Math.min(16, desktopButtonWidth / 9)}
-                  />
-                  <MobileButton
-                    {...buttonProps}
-                    id="doom-map"
-                    label="地図 M"
-                    action="map"
-                    position={[desktopColumns[1], hudBottom + 36, 0]}
-                    width={desktopButtonWidth}
-                    height={48}
-                    fontSize={16}
-                  />
-                </>
+                </group>
               )}
-              <MobileButton
-                {...buttonProps}
-                id="doom-leave-playing"
-                label="席を離れる"
-                action="leave"
-                position={[desktopColumns[2], hudBottom + 36, 0]}
-                width={desktopButtonWidth}
-                height={48}
-                fontSize={16}
-              />
+              {(showMenu || booting) && (
+                <MobileButton
+                  {...buttonProps}
+                  id="doom-leave-playing"
+                  label="離席 Space"
+                  action="leave"
+                  position={[desktopButtonWidth / 2 + 60, hudBottom + 36, 0]}
+                  width={desktopButtonWidth}
+                  height={48}
+                  fontSize={16}
+                />
+              )}
             </group>
           </group>
         )}
@@ -707,62 +761,55 @@ export function World() {
             rotation={[-0.35, 0, 0]}
             scale={ROOM_SCALE}
           >
-            <Text
-              layers-mask={1 << LAYERS.FIRST_PERSON_ONLY}
-              font={font}
-              position={[-0.31, 0.04, 0]}
-              fontSize={0.018}
-              color="#dadcc3"
-              textAlign="center"
-            >
-              {'移動\n左スティック'}
-            </Text>
-            <Text
-              layers-mask={1 << LAYERS.FIRST_PERSON_ONLY}
-              font={font}
-              position={[-0.035, 0.04, 0]}
-              fontSize={0.018}
-              color="#dadcc3"
-              textAlign="center"
-            >
-              {'使う 左トリガー\n武器 右スティック上下'}
-            </Text>
-            <Text
-              layers-mask={1 << LAYERS.FIRST_PERSON_ONLY}
-              font={font}
-              position={[0.48, 0.035, 0]}
-              fontSize={0.018}
-              color="#dadcc3"
-              textAlign="center"
-            >
-              {'射撃 右トリガー\n旋回 右スティック'}
-            </Text>
+            {[
+              '移動 左スティック\n使う 左トリガー',
+              '旋回 右スティック\n武器 右スティック上下',
+              '射撃 右トリガー\n一時停止 B',
+            ].map((label, index) => (
+              <group key={label} position={[(index - 1) * 0.3, 0.045, 0]}>
+                <mesh layers-mask={1 << LAYERS.FIRST_PERSON_ONLY}>
+                  <planeGeometry args={[0.28, 0.1]} />
+                  <meshBasicMaterial color="#252525" />
+                </mesh>
+                <Text
+                  layers-mask={1 << LAYERS.FIRST_PERSON_ONLY}
+                  font={font}
+                  position={[0, 0, 0.006]}
+                  fontSize={0.018}
+                  lineHeight={1.15}
+                  color="#dadcc3"
+                  textAlign="center"
+                >
+                  {label}
+                </Text>
+              </group>
+            ))}
             <Button
               {...buttonProps}
               id="doom-menu"
               label="一時停止 B"
               action="menu"
-              position={[0.235, 0.035, 0]}
-              width={0.18}
-              height={0.06}
+              position={[-0.3, -0.07, 0]}
+              width={0.24}
+              height={0.07}
             />
             <Button
               {...buttonProps}
               id="doom-map"
               label="地図"
               action="map"
-              position={[0.235, -0.065, 0]}
-              width={0.18}
-              height={0.058}
+              position={[0, -0.07, 0]}
+              width={0.24}
+              height={0.07}
             />
             <Button
               {...buttonProps}
               id="doom-leave-playing"
               label="席を離れる"
               action="leave"
-              position={[0.48, -0.065, 0]}
-              width={0.19}
-              height={0.058}
+              position={[0.3, -0.07, 0]}
+              width={0.24}
+              height={0.07}
             />
           </group>
         )}

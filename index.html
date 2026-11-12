@@ -15,6 +15,9 @@
         height: 100%;
         overflow: hidden;
       }
+      body:has(input[aria-label="DOOM キーボード操作"]) #root > div > div:last-child {
+        display: none;
+      }
       @media (pointer: coarse) {
         #root > div > div:not(:first-child) { display: none; }
       }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-import { useEffect, useLayoutEffect, useRef, type MutableRefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useViewpoint } from '@xrift/world-components';
 import { Raycaster, Vector2, Vector3, Matrix4, type Mesh } from 'three';
@@ -31,7 +31,6 @@ const keyboardKeys: Record<string, number> = {
   KeyZ: KEY.strafeLeft,
   KeyC: KEY.strafeRight,
   KeyF: KEY.use,
-  Space: KEY.use,
   ShiftLeft: KEY.speed,
   ShiftRight: KEY.speed,
 };
@@ -50,6 +49,7 @@ export function useControls(
   const held = useRef(new Set<number>());
   const keyboard = useRef(new Set<string>());
   const keyboardTarget = useRef<HTMLInputElement | null>(null);
+  const [spaceDown, setSpaceDown] = useState(false);
   const mouseDelta = useRef(0);
   const desktopPointer = window.matchMedia('(any-pointer: fine)').matches;
   const inVR = gl.xr.isPresenting;
@@ -59,6 +59,7 @@ export function useControls(
   const rotation = useRef(new Matrix4());
   const previousWeapon = useRef(false);
   const previousMenu = useRef(false);
+  const blockedTriggers = useRef(new WeakSet<XRInputSource>());
   const stick = useRef<{
     id: number;
     x: number;
@@ -85,6 +86,10 @@ export function useControls(
     ray.current.setFromCamera(point.current, camera);
     return ray.current.intersectObjects(buttons.current, false)[0]?.object;
   };
+  useLayoutEffect(() => {
+    for (const source of gl.xr.getSession()?.inputSources ?? [])
+      if (source.gamepad?.buttons[0]?.pressed) blockedTriggers.current.add(source);
+  }, [active, playing, inVR, gl]);
   useLayoutEffect(() => {
     let handledMouse = false;
     let handledTouch = false;
@@ -292,25 +297,21 @@ export function useControls(
           (event.target instanceof HTMLElement && event.target.isContentEditable))
       )
         return;
-      const enter = event.code === 'Enter' || event.code === 'NumpadEnter';
-      if (enter) {
-        if (
-          event.target !== keyboardTarget.current &&
-          event.target !== document.body &&
-          event.target !== document.documentElement &&
-          !isGameSurface(event.target)
-        )
-          return;
-        event.preventDefault();
-        event.stopImmediatePropagation();
-      }
-      if (event.code === 'Escape' || enter) {
-        if (!event.repeat)
-          current.current.action(enter && !current.current.playing ? 'resume' : 'menu');
+      if (event.code === 'Escape') {
+        if (!event.repeat) current.current.action('menu');
         return;
       }
       if (!current.current.playing) return;
-      if (event.code === 'Space' || event.code === 'KeyE') {
+      if (event.code === 'Space') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (!event.repeat) {
+          setSpaceDown(true);
+          current.current.action('weapon');
+        }
+        return;
+      }
+      if (event.code === 'KeyE') {
         event.preventDefault();
         event.stopImmediatePropagation();
       }
@@ -324,17 +325,28 @@ export function useControls(
         event.preventDefault();
         if (!event.repeat) current.current.action('map');
       }
-      if (event.code === 'KeyR' && !event.repeat) current.current.action('weapon');
     };
     const keyUp = (event: KeyboardEvent) => {
       keyboard.current.delete(event.code);
+      if (event.code === 'Space') setSpaceDown(false);
     };
     const blur = () => {
       clear();
+      setSpaceDown(false);
       if (current.current.active) current.current.action('menu');
     };
     const visibility = () => {
       if (document.hidden) blur();
+    };
+    const pointerLockChange = () => {
+      if (
+        current.current.active &&
+        !gl.xr.isPresenting &&
+        !document.pointerLockElement?.contains(gl.domElement)
+      ) {
+        clear();
+        current.current.action('menu');
+      }
     };
     const context = (event: MouseEvent) => {
       if (current.current.active) event.preventDefault();
@@ -354,6 +366,7 @@ export function useControls(
     window.addEventListener('blur', blur);
     window.addEventListener('contextmenu', context);
     document.addEventListener('visibilitychange', visibility);
+    document.addEventListener('pointerlockchange', pointerLockChange);
     gl.xr.addEventListener('sessionstart', clear);
     gl.xr.addEventListener('sessionend', clear);
     return () => {
@@ -373,12 +386,14 @@ export function useControls(
       window.removeEventListener('blur', blur);
       window.removeEventListener('contextmenu', context);
       document.removeEventListener('visibilitychange', visibility);
+      document.removeEventListener('pointerlockchange', pointerLockChange);
       gl.xr.removeEventListener('sessionstart', clear);
       gl.xr.removeEventListener('sessionend', clear);
     };
   }, [gl, camera]);
+  const captureKeyboard = active && (playing || spaceDown) && desktopPointer && !inVR;
   useEffect(() => {
-    if (!active || !playing || !desktopPointer || inVR) return;
+    if (!captureKeyboard) return;
     const input = document.createElement('input');
     input.readOnly = true;
     input.inputMode = 'none';
@@ -398,6 +413,7 @@ export function useControls(
     input.focus({ preventScroll: true });
     const blur = () => {
       keyboard.current.clear();
+      setSpaceDown(false);
       current.current.runtime?.release();
       current.current.action('menu');
     };
@@ -407,7 +423,7 @@ export function useControls(
       keyboardTarget.current = null;
       input.remove();
     };
-  }, [active, playing, desktopPointer, inVR]);
+  }, [captureKeyboard]);
   useEffect(() => {
     if (!active) return;
     const previous = gl.domElement.style.touchAction;
@@ -475,6 +491,7 @@ export function useControls(
     let weapon = false;
     let menu = false;
     if (session) {
+      ray.current.layers.enableAll();
       const frame = gl.xr.getFrame();
       const referenceSpace = gl.xr.getReferenceSpace();
       for (const source of session.inputSources) {
@@ -487,14 +504,18 @@ export function useControls(
         ray.current.ray.origin.setFromMatrixPosition(rotation.current);
         ray.current.ray.direction.set(0, 0, -1).transformDirection(rotation.current);
         const overUI = ray.current.intersectObjects(buttons.current, false).length > 0;
+        const pressed = Boolean(pad.buttons[0]?.pressed);
+        if (!pressed) blockedTriggers.current.delete(source);
+        else if (overUI) blockedTriggers.current.add(source);
+        const trigger = pressed && !blockedTriggers.current.has(source);
         if (source.handedness === 'left') {
           forward = -(pad.axes[3] ?? 0);
           side = pad.axes[2] ?? 0;
-          if (!overUI && pad.buttons[0]?.pressed) keys.add(KEY.use);
+          if (trigger) keys.add(KEY.use);
           menu ||= Boolean(pad.buttons[5]?.pressed);
         } else if (source.handedness === 'right') {
           turn = pad.axes[2] ?? 0;
-          if (!overUI && pad.buttons[0]?.pressed) keys.add(KEY.fire);
+          if (trigger) keys.add(KEY.fire);
           weapon ||= Math.abs(pad.axes[3] ?? 0) > 0.65;
           menu ||= Boolean(pad.buttons[5]?.pressed);
         }
