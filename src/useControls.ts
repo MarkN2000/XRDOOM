@@ -86,8 +86,11 @@ export function useControls(
     return ray.current.intersectObjects(buttons.current, false)[0]?.object;
   };
   useLayoutEffect(() => {
+    let handledMouse = false;
     let handledTouch = false;
     const clear = () => {
+      handledMouse = false;
+      handledTouch = false;
       held.current.clear();
       keyboard.current.clear();
       mouseDelta.current = 0;
@@ -104,6 +107,7 @@ export function useControls(
         });
     };
     const mouseDown = (event: MouseEvent) => {
+      handledMouse = false;
       if (!isGameSurface(event.target)) return;
       const locked = Boolean(document.pointerLockElement?.contains(gl.domElement));
       const button = hitButton(
@@ -116,6 +120,7 @@ export function useControls(
         current.current.active &&
         current.current.playing
       ) {
+        handledMouse = true;
         event.preventDefault();
         event.stopImmediatePropagation();
         held.current.add(button.userData.hold);
@@ -123,6 +128,7 @@ export function useControls(
         return;
       }
       if (event.button === 0 && button?.userData.action) {
+        handledMouse = true;
         event.preventDefault();
         event.stopImmediatePropagation();
         current.current.action(button.userData.action);
@@ -263,10 +269,12 @@ export function useControls(
         }
     };
     const click = (event: PointerEvent) => {
-      if (event.pointerType !== 'touch' || !handledTouch || !isGameSurface(event.target)) return;
+      const handled = event.pointerType === 'touch' ? handledTouch : handledMouse;
+      handledMouse = false;
+      handledTouch = false;
+      if (!handled || !isGameSurface(event.target)) return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      handledTouch = false;
     };
     const keyDown = (event: KeyboardEvent) => {
       if (
