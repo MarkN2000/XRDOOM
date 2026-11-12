@@ -2,7 +2,7 @@
   "world": {
     "distDir": "./dist",
     "title": "XRDOOM",
-    "description": "DOOMをXRiftでプレイできます。WebRTCで低遅延配信もされるのでみんなで観戦できます（doomgeneric使用／DOOMシェアウェア版）",
+    "description": "DOOMをXRiftでプレイできます。WebRTCで低遅延配信もされるのでみんなで観戦できます（doomgeneric使用／DOOMシェアウェア版）\n\nDOOMはid Softwareの作品です。本プロジェクトは非公式であり、id SoftwareやXRiftによる公認・提携を示しません。",
     "buildCommand": "npm run build",
     "ignore": [
       "**/.DS_Store",
