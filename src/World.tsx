@@ -288,7 +288,7 @@ export function World() {
     runtime?.run(false);
   }, [runtime]);
   useEffect(() => {
-    runtime?.audio?.volume(0.65);
+    runtime?.audio?.volume(0.5);
   }, [runtime]);
   useEffect(() => {
     if (!audioContext) return;
@@ -338,7 +338,7 @@ export function World() {
     const stream = broadcast.remoteStream;
     if (!audioContext || !streamSound || seated || !stream?.getAudioTracks().length) return;
     const audio = spatialAudio(audioContext, audioContext.createMediaStreamSource(stream));
-    audio.volume(0.65);
+    audio.volume(0.5);
     viewerAudio.current = audio;
     return () => {
       audio.dispose();
@@ -610,6 +610,14 @@ export function World() {
       <SpawnPoint position={[0, 0, 0]} />
       <group name="doom-room-origin" position={[...WORLD_OFFSET]}>
         <Room baseUrl={baseUrl} />
+        <mesh
+          name="doom-screen-backing"
+          position={[SCREEN[0], SCREEN[1], SCREEN[2] - 0.004 * ROOM_SCALE]}
+          scale={ROOM_SCALE}
+        >
+          <planeGeometry args={[0.6, 0.45]} />
+          <meshBasicMaterial color="black" side={DoubleSide} toneMapped={false} />
+        </mesh>
         <Suspense fallback={null}>
           <Text name="doom-font-preload" font={font} visible={false}>席を離れる Space</Text>
         </Suspense>

@@ -198,6 +198,10 @@ export async function startDoom(baseUrl: string, skill: number) {
       if (disposed) return Promise.resolve(false);
       if (boot) return boot;
       clearInterval(cursorTimer);
+      canvas.width = 640;
+      canvas.height = 400;
+      context.imageSmoothingEnabled = false;
+      context.drawImage(prompt, 0, 0);
       context.fillStyle = '#050605';
       context.fillRect(104, 118, 8, 2);
       frame++;
@@ -277,6 +281,8 @@ export async function startDoom(baseUrl: string, skill: number) {
       if (disposed || !started) return;
       release();
       instance._arcade_restart();
+      started = false;
+      boot = undefined;
     },
     resumeAudio() {
       void audioContext?.resume();
