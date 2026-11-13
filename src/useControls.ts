@@ -25,12 +25,8 @@ const keyboardKeys: Record<string, number> = {
   KeyS: KEY.back,
   KeyA: KEY.strafeLeft,
   KeyD: KEY.strafeRight,
-  ArrowUp: KEY.forward,
-  ArrowDown: KEY.back,
   ArrowLeft: KEY.left,
   ArrowRight: KEY.right,
-  KeyZ: KEY.strafeLeft,
-  KeyC: KEY.strafeRight,
   KeyF: KEY.use,
   Space: KEY.use,
   ShiftLeft: KEY.speed,
@@ -56,7 +52,7 @@ export function useControls(
   const desktopPointer = window.matchMedia('(any-pointer: fine)').matches;
   const inVR = gl.xr.isPresenting;
   const touches = useRef(new Map<number, number>());
-  const ray = useRef(new Raycaster());
+  const ray = useRef(new Raycaster(undefined, undefined, 0, 3.5));
   const point = useRef(new Vector2());
   const rotation = useRef(new Matrix4());
   const previousWeapon = useRef(false);
@@ -316,12 +312,19 @@ export function useControls(
       const code = keyboardKeys[event.code];
       if (code) {
         event.preventDefault();
+        event.stopImmediatePropagation();
         keyboard.current.add(event.code);
         if (code === KEY.use && !event.repeat) current.current.runtime?.pulse(code);
       }
       if (event.code === 'KeyM' || event.code === 'Tab') {
         event.preventDefault();
+        event.stopImmediatePropagation();
         if (!event.repeat) current.current.action('map');
+      }
+      if (event.code === 'KeyR') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (!event.repeat) current.current.action('weapon');
       }
     };
     const keyUp = (event: KeyboardEvent) => {

@@ -493,7 +493,8 @@ export function World() {
         .set(SCREEN_WORLD[0], SCREEN_WORLD[1] - 0.225 * ROOM_SCALE, SCREEN_WORLD[2])
         .project(camera);
       if (desktopGuide.current)
-        desktopGuide.current.visible = ((1 + screenBottom.current.y) * size.height) / 2 >= 100;
+        desktopGuide.current.visible =
+          ((1 + screenBottom.current.y) * size.height) / 2 >= desktopGuideHeight + 24;
     }
   });
   const buttonProps = { buttons, onAction, font };
@@ -525,14 +526,94 @@ export function World() {
   const hudScale = (2 * Math.tan((framedFov * Math.PI) / 360)) / size.height;
   const hudRight = size.width / 2;
   const hudBottom = -size.height / 2;
-  const desktopButtonWidth = Math.min(168, (size.width - 168) / 4);
-  const desktopGuideWidth = Math.min(400, size.width / 2 - 96);
+  const desktopButtonWidth = Math.min(248, size.width / 2 - 96);
+  const desktopGuideWidth = Math.max(220, Math.min(500, size.width / 2 - 96));
+  const desktopGuideColumns = desktopGuideWidth >= 430 ? 2 : 1;
+  const desktopGuideHeight = (desktopGuideColumns === 2 ? 4 : 7) * 28 + 24;
+  const desktopGuideTextures = useMemo(() => {
+    if (!desktop || mobile) return [];
+    return [180, desktopGuideWidth].map((width, index) => {
+      const height = index === 0 ? 128 : desktopGuideHeight;
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.ceil(width * 2);
+      canvas.height = height * 2;
+      const ctx = canvas.getContext('2d')!;
+      ctx.scale(2, 2);
+      ctx.fillStyle = '#252525';
+      ctx.fillRect(0, 0, width, height);
+      ctx.textBaseline = 'middle';
+      ctx.font = '16px sans-serif';
+      const keycap = (label: string, x: number, y: number) => {
+        const keyWidth = ctx.measureText(label).width + 12;
+        ctx.strokeStyle = '#77736c';
+        ctx.beginPath();
+        const keyHeight = label === 'Esc' ? 36 : 24;
+        ctx.roundRect(x, y - keyHeight / 2, keyWidth, keyHeight, 3);
+        ctx.stroke();
+        ctx.fillText(label, x + 6, y);
+        return keyWidth;
+      };
+      if (index === 0) {
+        ctx.font = '26px sans-serif';
+        ctx.fillStyle = '#f4d99c';
+        keycap('Esc', (width - ctx.measureText('Esc').width - 12) / 2, 34);
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#f2f0e9';
+        ctx.font = '18px sans-serif';
+        ctx.fillText('一時停止', width / 2, 72);
+        ctx.fillStyle = '#c6c4bf';
+        ctx.font = '12px sans-serif';
+        ctx.fillText('カーソル解除', width / 2, 99);
+      } else {
+        const rows = [
+          ['移動', ['W A S D']],
+          ['旋回', ['マウス', '← →']],
+          ['走る', ['Shift', '長押し']],
+          ['地図', ['M', 'Tab']],
+          ['射撃', ['左クリック']],
+          ['使う', ['Space', 'F']],
+          ['武器', ['右クリック', 'R']],
+        ] as const;
+        rows.forEach(([label, keys], row) => {
+          const column = desktopGuideColumns === 2 && row >= 4 ? 1 : 0;
+          const x = 18 + column * (width / 2);
+          const y = 24 + (row - column * 4) * 28;
+          ctx.fillStyle = '#c6c4bf';
+          ctx.fillText(label, x, y);
+          let keyX = x + 44;
+          keys.forEach((key, keyIndex) => {
+            if (keyIndex && key !== '長押し') {
+              ctx.fillStyle = '#aaa69e';
+              ctx.fillText('/', keyX, y);
+              keyX += 12;
+            }
+            ctx.fillStyle = '#f2f0e9';
+            if (['マウス', '左クリック', '右クリック', '長押し'].includes(key)) {
+              ctx.fillText(key, keyX, y);
+              keyX += ctx.measureText(key).width + 8;
+            } else keyX += keycap(key, keyX, y) + 8;
+          });
+        });
+      }
+      const texture = new CanvasTexture(canvas);
+      texture.colorSpace = SRGBColorSpace;
+      return texture;
+    });
+  }, [desktop, mobile, desktopGuideWidth, desktopGuideColumns, desktopGuideHeight]);
+  useEffect(
+    () => () => desktopGuideTextures.forEach((texture) => texture.dispose()),
+    [desktopGuideTextures],
+  );
   const touchCenter = hudBottom + size.height * (size.width > size.height ? 144 / 375 : 228 / 722);
   return (
     <Suspense fallback={null}>
       <SpawnPoint position={[0, 0, 0]} />
       <group name="doom-room-origin" position={[...WORLD_OFFSET]}>
         <Room baseUrl={baseUrl} />
+        <Suspense fallback={null}>
+          <Text name="doom-font-preload" font={font} visible={false}>席を離れる Space</Text>
+        </Suspense>
+        <Suspense fallback={null}>
         {!session && !seated && seatVisible && (
           <Interactable
             id="doom-station-seat"
@@ -541,7 +622,7 @@ export function World() {
           >
             <mesh
               name="doom-seat-target"
-              position={[0, 0.95 * ROOM_SCALE, (-3.35 + STATION_FORWARD) * ROOM_SCALE]}
+              position={[0, 0.92 * ROOM_SCALE, (-3.07 + STATION_FORWARD) * ROOM_SCALE]}
               scale={ROOM_SCALE}
               userData={{ action: 'sit' }}
               ref={(value) => {
@@ -551,7 +632,7 @@ export function World() {
                 if (value) buttons.current.push(value);
               }}
             >
-              <boxGeometry args={[2.1, 1.9, 2.7]} />
+              <boxGeometry args={[0.84, 1.88, 2.46]} />
               <meshBasicMaterial
                 transparent
                 opacity={0}
@@ -677,6 +758,7 @@ export function World() {
             />
           </group>
         )}
+        </Suspense>
         {seatVisible && (
           <Seat
             id={SEAT}
@@ -709,6 +791,7 @@ export function World() {
             </group>
           </Seat>
         )}
+        <Suspense fallback={null}>
         {hosting && (showMenu || booting) && !mobile && !desktop && (
           <group
             name="doom-idle-controls"
@@ -731,65 +814,37 @@ export function World() {
           <group ref={desktopHud}>
             <group name="doom-desktop-controls" position={[0, 0, -1]} scale={hudScale}>
               {!showMenu && !booting && (
-                <group ref={desktopGuide} name="doom-desktop-guide" position={[0, hudBottom + 52, 0]}>
-                  <group name="doom-desktop-pause-guide" position={[-180, 0, 0]}>
-                    <mesh layers-mask={1 << LAYERS.FIRST_PERSON_ONLY} renderOrder={18}>
-                      <planeGeometry args={[200, 80]} />
-                      <meshBasicMaterial color="#252525" depthTest={false} depthWrite={false} />
-                    </mesh>
-                    <Text
-                      layers-mask={1 << LAYERS.FIRST_PERSON_ONLY}
-                      font={font}
-                      position={[0, 0, 0.02]}
-                      fontSize={22}
-                      lineHeight={1.15}
-                      color="#f4d99c"
-                      textAlign="center"
-                      renderOrder={21}
-                      material-depthTest={false}
-                      material-depthWrite={false}
-                    >
-                      {'Esc\n一時停止'}
-                    </Text>
-                  </group>
-                  <group name="doom-desktop-input-guide" position={[80 + desktopGuideWidth / 2, 0, 0]}>
-                    <mesh layers-mask={1 << LAYERS.FIRST_PERSON_ONLY} renderOrder={18}>
-                      <planeGeometry args={[desktopGuideWidth, 80]} />
-                      <meshBasicMaterial color="#252525" depthTest={false} depthWrite={false} />
-                    </mesh>
-                    {[
-                      '移動 WASD\n旋回 マウス / ←→\n走る Shift / 地図 M',
-                      '射撃 左クリック\n使う Space / F\n武器 右クリック',
-                    ].map((label, index) => (
-                      <Text
-                        key={label}
+                <group ref={desktopGuide} name="doom-desktop-guide" position={[0, hudBottom + 12, 0]}>
+                  {desktopGuideTextures.map((texture, index) => {
+                    const width = index === 0 ? 180 : desktopGuideWidth;
+                    const height = index === 0 ? 128 : desktopGuideHeight;
+                    return (
+                      <mesh
+                        key={index}
+                        name={index === 0 ? 'doom-desktop-pause-guide' : 'doom-desktop-input-guide'}
+                        position={[index === 0 ? -80 - width / 2 : 80 + width / 2, height / 2, 0]}
                         layers-mask={1 << LAYERS.FIRST_PERSON_ONLY}
-                        font={font}
-                        position={[index === 0 ? -desktopGuideWidth / 2 + 14 : 6, 0, 0.02]}
-                        anchorX="left"
-                        fontSize={Math.min(14, (desktopGuideWidth - 40) / 18)}
-                        lineHeight={1.25}
-                        color="#dadcc3"
-                        renderOrder={21}
-                        material-depthTest={false}
-                        material-depthWrite={false}
+                        renderOrder={18}
                       >
-                        {label}
-                      </Text>
-                    ))}
-                  </group>
+                        <planeGeometry args={[width, height]} />
+                        <meshBasicMaterial map={texture} depthTest={false} depthWrite={false} toneMapped={false} />
+                      </mesh>
+                    );
+                  })}
                 </group>
               )}
               {(showMenu || booting) && (
                 <MobileButton
                   {...buttonProps}
                   id="doom-leave-playing"
-                  label="離席 Space"
+                  label="席を離れる  Space"
+                  icon="leave"
+                  primary
                   action="leave"
-                  position={[desktopButtonWidth / 2 + 60, hudBottom + 36, 0]}
+                  position={[desktopButtonWidth / 2 + 80, hudBottom + 40, 0]}
                   width={desktopButtonWidth}
-                  height={48}
-                  fontSize={16}
+                  height={56}
+                  fontSize={Math.min(16, (desktopButtonWidth - 40) / 13)}
                 />
               )}
             </group>
@@ -954,6 +1009,7 @@ export function World() {
             </group>
           </group>
         )}
+      </Suspense>
       </group>
     </Suspense>
   );
