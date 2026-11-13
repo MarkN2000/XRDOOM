@@ -181,7 +181,7 @@ export function useControls(
           event.preventDefault();
           event.stopImmediatePropagation();
           const bounds = gl.domElement.getBoundingClientRect();
-          if (!look.current && event.clientX > bounds.left + bounds.width / 2) {
+          if (!look.current && (bounds.height >= bounds.width || event.clientX > bounds.left + bounds.width / 2)) {
             look.current = { id: event.pointerId, x: event.clientX };
             gl.domElement.setPointerCapture(event.pointerId);
           }

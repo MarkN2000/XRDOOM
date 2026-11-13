@@ -183,7 +183,7 @@ export function MobileButton({
           ref={register}
           userData={{ action, hold, joystick }}
         >
-          <boxGeometry args={[Math.max(48, width), Math.max(48, height), 0.012]} />
+          <boxGeometry args={[Math.max(48, width + (joystick ? 24 : 0)), Math.max(48, height + (joystick ? 24 : 0)), 0.012]} />
           <meshBasicMaterial colorWrite={false} depthWrite={false} depthTest={false} />
         </mesh>
         <mesh layers-mask={1 << LAYERS.FIRST_PERSON_ONLY} renderOrder={20}>
