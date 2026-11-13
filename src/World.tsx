@@ -604,6 +604,7 @@ export function World() {
     () => () => desktopGuideTextures.forEach((texture) => texture.dispose()),
     [desktopGuideTextures],
   );
+  const touchTop = -hudBottom - 112;
   const touchCenter = hudBottom + size.height * (size.width > size.height ? 144 / 375 : 228 / 722);
   return (
     <Suspense fallback={null}>
@@ -929,7 +930,7 @@ export function World() {
                   icon="leave"
                   width={76}
                   height={44}
-                  position={[-hudRight + 56, -hudBottom - (mobileLandscape ? 92 : 40), 0]}
+                  position={[-hudRight + 56, touchTop, 0]}
                 />
               )}
               {!showMenu && !booting && (
@@ -945,7 +946,7 @@ export function World() {
                     height={44}
                     position={[
                       hudRight - 40,
-                      mobileLandscape ? hudBottom + 44 : -hudBottom - 40,
+                      mobileLandscape ? hudBottom + 44 : touchTop,
                       0,
                     ]}
                   />
@@ -957,7 +958,7 @@ export function World() {
                     icon="leave"
                     width={76}
                     height={44}
-                    position={[-hudRight + 56, -hudBottom - (mobileLandscape ? 92 : 40), 0]}
+                    position={[-hudRight + 56, touchTop, 0]}
                   />
                   <MobileButton
                     {...touchProps}
@@ -967,7 +968,7 @@ export function World() {
                     icon="map"
                     width={76}
                     height={44}
-                    position={[-hudRight + 148, -hudBottom - (mobileLandscape ? 92 : 40), 0]}
+                    position={[-hudRight + 148, touchTop, 0]}
                   />
                   <MobileButton
                     {...touchProps}
