@@ -5,7 +5,7 @@ XRift内のレトロPCでDOOMを遊べる非公式ワールド。PC・スマホ�
 
 DOOMの実行には、[ozkl/doomgeneric](https://github.com/ozkl/doomgeneric)をXRift向けに改変して使用しています。
 
-DOOMはid Softwareの作品です。本プロジェクトは非公式であり、id SoftwareやXRiftによる公認・提携を示しません。
+XRDOOMは、DOOMの権利者およびXRift非公認のファンプロジェクトです。
 
 PCまたは椅子を選んで着席し、モニターを選ぶと開始します。操作説明はワールド内に表示されます。
 
