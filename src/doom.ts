@@ -273,6 +273,11 @@ export async function startDoom(baseUrl: string, skill: number) {
     run(value: boolean) {
       instance._arcade_run(Number(value));
     },
+    restart() {
+      if (disposed || !started) return;
+      release();
+      instance._arcade_restart();
+    },
     resumeAudio() {
       void audioContext?.resume();
     },

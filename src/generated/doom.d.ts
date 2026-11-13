@@ -7,6 +7,7 @@ export interface DoomModule {
   _arcade_turn(delta: number): void;
   _arcade_pause(paused: number): void;
   _arcade_run(run: number): void;
+  _arcade_restart(): void;
   _arcade_stop(): void;
 }
 export default function createDoom(options: {

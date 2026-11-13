@@ -386,7 +386,8 @@ export function World() {
           document.exitPointerLock();
         return;
       }
-      if (action === 'resume') {
+      if (action === 'resume' || action === 'restart') {
+        if (!showMenu || (action === 'restart' && !runtime?.started)) return;
         if (!gl.xr.isPresenting && getViewpoint() === 'third-person') return;
         if (runtime && !booting) {
           runtime.resumeAudio();
@@ -415,6 +416,7 @@ export function World() {
             );
             gameView.current.copy(camera.quaternion);
           }
+          if (action === 'restart') runtime.restart();
           setMenu(false);
           if (!runtime.started) {
             setBooting(true);
@@ -444,6 +446,7 @@ export function World() {
       hosting,
       runtime,
       menu,
+      showMenu,
       booting,
       session,
       seats,
@@ -518,6 +521,7 @@ export function World() {
         ? message || broadcast.status
         : null;
   const consoleHint = hosting && !runtime?.started && !viewBlocked && !message;
+  const splitScreen = screenAction === 'resume' && Boolean(runtime?.started);
   const hudScale = (2 * Math.tan((framedFov * Math.PI) / 360)) / size.height;
   const hudRight = size.width / 2;
   const hudBottom = -size.height / 2;
@@ -560,7 +564,7 @@ export function World() {
         )}
         <Interactable
           id="doom-screen"
-          enabled={Boolean(screenAction)}
+          enabled={!splitScreen && Boolean(screenAction)}
           onInteract={() => screenAction && onAction(screenAction)}
           interactionText={hosting ? (runtime?.started ? '再開する' : '開始する') : '座って遊ぶ'}
         >
@@ -568,10 +572,10 @@ export function World() {
             name="doom-screen"
             position={[...SCREEN]}
             scale={ROOM_SCALE}
-            userData={{ action: screenAction }}
+            userData={{ action: splitScreen ? undefined : screenAction }}
             ref={(value) => {
               buttons.current = buttons.current.filter((item) => item.name !== 'doom-screen');
-              if (value && screenAction) buttons.current.push(value);
+              if (value && screenAction && !splitScreen) buttons.current.push(value);
             }}
           >
             <planeGeometry args={[0.6, 0.45]} />
@@ -582,7 +586,7 @@ export function World() {
               toneMapped={false}
             />
           </mesh>
-          {screenHint && (
+          {screenHint && !splitScreen && (
             <group
               name={hosting ? 'doom-play-hint' : 'doom-stream-status'}
               position={[
@@ -623,6 +627,36 @@ export function World() {
             </group>
           )}
         </Interactable>
+        {splitScreen && (
+          <group name="doom-screen-options" position={[SCREEN[0], SCREEN[1], SCREEN[2] + 0.012 * ROOM_SCALE]} scale={ROOM_SCALE}>
+            {([
+              ['resume', 0.0675, 0.315, `${gesture}再開`],
+              ['restart', -0.1575, 0.135, '最初から'],
+            ] as const).map(([action, y, height, label]) => (
+              <Interactable key={action} id={`doom-screen-${action}`} onInteract={() => onAction(action)} interactionText={label}>
+                <mesh
+                  name={`doom-screen-${action}`}
+                  position={[0, y, 0]}
+                  userData={{ action }}
+                  ref={(value) => {
+                    buttons.current = buttons.current.filter(item => item.name !== `doom-screen-${action}`);
+                    if (value) buttons.current.push(value);
+                  }}
+                >
+                  <planeGeometry args={[0.6, height]} />
+                  <meshBasicMaterial transparent opacity={0} colorWrite={false} depthWrite={false} />
+                </mesh>
+                <Text font={font} position={[0, y, 0.003]} fontSize={action === 'resume' ? 0.05 : 0.045} maxWidth={0.56} textAlign="center" color="#e2dfc9" material-toneMapped={false}>
+                  {label}
+                </Text>
+              </Interactable>
+            ))}
+            <mesh position={[0, -0.09, 0.003]}>
+              <planeGeometry args={[0.56, 0.0015]} />
+              <meshBasicMaterial color="#e2dfc9" toneMapped={false} />
+            </mesh>
+          </group>
+        )}
         {!texture && <DosPrompt baseUrl={baseUrl} />}
         {!seated && session && (
           <group

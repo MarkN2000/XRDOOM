@@ -8,6 +8,7 @@ export type Action =
   | 'sit'
   | 'menu'
   | 'resume'
+  | 'restart'
   | 'weapon'
   | 'use'
   | 'map'

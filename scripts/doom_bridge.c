@@ -9,6 +9,7 @@
 #include "doomstat.h"
 #include "d_event.h"
 #include "d_loop.h"
+#include "g_game.h"
 #include "m_controls.h"
 #include "i_sound.h"
 #include "s_sound.h"
@@ -66,6 +67,7 @@ EMSCRIPTEN_KEEPALIVE void arcade_pause(int value) {
     }
 }
 EMSCRIPTEN_KEEPALIVE void arcade_run(int value) { key_speed = value ? 256 : KEY_RSHIFT; }
+EMSCRIPTEN_KEEPALIVE void arcade_restart(void) { G_DeferedInitNew(gameskill, 1, 1); }
 EMSCRIPTEN_KEEPALIVE void arcade_stop(void) {
     emscripten_cancel_main_loop();
     I_ShutdownSound();

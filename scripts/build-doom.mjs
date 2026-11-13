@@ -131,7 +131,7 @@ run(python, [
   '-sASYNCIFY=1',
   '-sASYNCIFY_STACK_SIZE=65536',
   '-sEXPORTED_RUNTIME_METHODS=["FS"]',
-  '-sEXPORTED_FUNCTIONS=["_main","_arcade_key","_arcade_turn","_arcade_pause","_arcade_run","_arcade_stop"]',
+  '-sEXPORTED_FUNCTIONS=["_main","_arcade_key","_arcade_turn","_arcade_pause","_arcade_run","_arcade_restart","_arcade_stop"]',
   '--preload-file',
   `${music}@/timidity`,
   `-ffile-prefix-map=${root}=.`,
