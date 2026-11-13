@@ -511,7 +511,7 @@ export function World() {
   const screenHint =
     hosting && showMenu && !booting
       ? viewBlocked
-        ? '一人称に切り替えてください'
+        ? '一人称視点に\n切り替えてください'
         : message ||
           (runtime
             ? runtime.started
@@ -703,7 +703,7 @@ export function World() {
                     name={hosting ? 'doom-play-hint-text' : 'doom-stream-status-text'}
                     font={font}
                     position={[0, 0, 0.003]}
-                    fontSize={0.065}
+                    fontSize={viewBlocked ? 0.062 : 0.065}
                     maxWidth={0.56}
                     textAlign="center"
                     color="#e2dfc9"
